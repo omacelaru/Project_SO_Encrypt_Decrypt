@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
 
 #define MAX_WORD_LENGTH 100
 
@@ -38,6 +41,36 @@ void generatePermutation(int *permutation, int length) {
     }
 }
 
+void mapFileToMemory(const char *fileName, char **words, int **permutations, int *numWords, int encrypt) {
+    FILE *file = fopen(fileName, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    *numWords = 0;
+    char line[MAX_WORD_LENGTH];
+    if (fgets(line, sizeof(line), file) != NULL) {
+        // Calculează numărul de cuvinte în linie
+        char *token = strtok(line, " \t\n"); // consideră spațiile, tabulările și newline-uri ca delimitatori
+        while (token != NULL) {
+            (*numWords)++;
+            token = strtok(NULL, " \t\n");
+        }
+    }
+    rewind(file);
+
+    // Map the file into memory
+    *words = mmap(NULL, *numWords * MAX_WORD_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    *permutations = mmap(NULL, *numWords * MAX_WORD_LENGTH * sizeof(int), PROT_READ | PROT_WRITE,
+                         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+    // Read words into memory
+    for (int i = 0; i < *numWords; ++i) {
+        fscanf(file, "%s", (*words) + i * MAX_WORD_LENGTH);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2 && argc != 3) {
         printf("Usage:\n");
@@ -53,6 +86,8 @@ int main(int argc, char *argv[]) {
     char *words;
     int *permutations;
     int numWords;
+
+    mapFileToMemory(inputFileName, &words, &permutations, &numWords, encrypt);
 
     if (encrypt) {
         printf("Encryption successful!\n");
