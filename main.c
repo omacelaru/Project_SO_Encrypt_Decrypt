@@ -69,6 +69,17 @@ void mapFileToMemory(const char *fileName, char **words, int **permutations, int
     for (int i = 0; i < *numWords; ++i) {
         fscanf(file, "%s", (*words) + i * MAX_WORD_LENGTH);
     }
+
+    // If decrypting, read permutations from the file
+    if (!encrypt) {
+        for (int i = 0; i < *numWords; ++i) {
+            for (int j = 0; j < strlen((*words) + i * MAX_WORD_LENGTH); ++j) {
+                fscanf(file, "%d", &((*permutations)[i * MAX_WORD_LENGTH + j]));
+            }
+        }
+    }
+
+    fclose(file);
 }
 
 void processWord(char *word, int *permutation, int encrypt) {
@@ -104,6 +115,34 @@ void createProcesses(char *words, int *permutations, int numWords, int encrypt) 
     }
 }
 
+void writeOutputFile(const char *outputFileName, char *words, int *permutations, int numWords, int encrypt) {
+    FILE *outputFile = fopen(outputFileName, "w");
+    if (outputFile == NULL) {
+        perror("Error opening output file");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < numWords; ++i) {
+        fprintf(outputFile, "%s ", words + i * MAX_WORD_LENGTH);
+    }
+    if (encrypt) {
+        fprintf(outputFile, "\n");
+        for (int i = 0; i < numWords; ++i) {
+            for (int j = 0; j < strlen(words + i * MAX_WORD_LENGTH); ++j) {
+                fprintf(outputFile, "%d ", permutations[i * MAX_WORD_LENGTH + j]);
+            }
+            fprintf(outputFile, "\n");
+        }
+    }
+
+    fclose(outputFile);
+}
+
+void cleanupMemory(char *words, int *permutations, int numWords) {
+    munmap(words, numWords * MAX_WORD_LENGTH);
+    munmap(permutations, numWords * MAX_WORD_LENGTH * sizeof(int));
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2 && argc != 3) {
         printf("Usage:\n");
@@ -122,6 +161,8 @@ int main(int argc, char *argv[]) {
 
     mapFileToMemory(inputFileName, &words, &permutations, &numWords, encrypt);
     createProcesses(words, permutations, numWords, encrypt);
+    writeOutputFile(outputFileName, words, permutations, numWords, encrypt);
+    cleanupMemory(words, permutations, numWords);
 
     if (encrypt) {
         printf("Encryption successful!\n");
