@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #include <sys/mman.h>
 
 #define MAX_WORD_LENGTH 100
@@ -69,6 +71,39 @@ void mapFileToMemory(const char *fileName, char **words, int **permutations, int
     }
 }
 
+void processWord(char *word, int *permutation, int encrypt) {
+    int length = strlen(word);
+
+    if (encrypt) {
+        generatePermutation(permutation, length);
+        encryptWord(word, permutation, length);
+    } else {
+        decryptWord(word, permutation, length);
+    }
+}
+
+void createProcesses(char *words, int *permutations, int numWords, int encrypt) {
+    pid_t pid;
+
+    for (int i = 0; i < numWords; ++i) {
+        pid = fork();
+
+        if (pid == -1) {
+            perror("Fork error");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0) {
+            // Proces copil
+            processWord(words + i * MAX_WORD_LENGTH, permutations + i * MAX_WORD_LENGTH, encrypt);
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    // Așteaptă ca toate procesele copil să se termine
+    for (int i = 0; i < numWords; ++i) {
+        wait(NULL);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2 && argc != 3) {
         printf("Usage:\n");
@@ -86,6 +121,7 @@ int main(int argc, char *argv[]) {
     int numWords;
 
     mapFileToMemory(inputFileName, &words, &permutations, &numWords, encrypt);
+    createProcesses(words, permutations, numWords, encrypt);
 
     if (encrypt) {
         printf("Encryption successful!\n");
